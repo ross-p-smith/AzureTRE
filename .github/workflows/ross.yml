@@ -67,9 +67,7 @@ jobs:
           tags: ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
           cache-from: type=registry,
             ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:buildcache
-          cache-to: type=registry,
-            ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:buildcache,
-            mode=max
+          cache-to: type=inline
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             USER_UID=${{ env.USER_UID }}
@@ -136,15 +134,15 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
+          file: .devcontainer/Dockerfile
           builder: ${{ steps.buildx.outputs.name }}
           push: true
           tags: ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
           cache-from: type=registry,
             ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:buildcache
-          cache-to: type=registry,
-            ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:buildcache,
-            mode=max
+          cache-to: type=inline
           build-args: |
+            BUILDKIT_INLINE_CACHE=1
             USER_UID=${{ env.USER_UID }}
             USER_GID=${{ env.USER_GID }}
 
