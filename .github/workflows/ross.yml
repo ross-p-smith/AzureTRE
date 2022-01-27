@@ -1,12 +1,12 @@
 ---
-name: Deploy Azure TRE
+name: Sort cache out
 
 on:
   schedule:
     # 1am each night https://crontab.guru/#0_1_*_*_*
     - cron: "0 1 * * *"
   push:
-    branches: [ross/ActionsInDevContainer]
+    branches: [ross/docker-cache]
   workflow_dispatch:
 
 # This will prevent multiple runs of this entire workflow.
