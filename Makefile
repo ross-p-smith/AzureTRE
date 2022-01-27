@@ -1,5 +1,8 @@
 .PHONY: bootstrap-init mgmt-deploy mgmt-destroy build-api-image push-api-image deploy-tre destroy-tre letsencrypt
 
+help:
+	echo "Hellooooo!"
+
 SHELL:=/bin/bash
 ROOTPATH:=$(shell pwd)
 
