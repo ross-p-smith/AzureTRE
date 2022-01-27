@@ -65,7 +65,7 @@ jobs:
           context: .
           file: .devcontainer/Dockerfile
           builder: ${{ steps.buildx.outputs.name }}
-          push: false
+          load: true
           tags: tredev1:latest
           cache-from: type=registry,
             ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev:buildcache
