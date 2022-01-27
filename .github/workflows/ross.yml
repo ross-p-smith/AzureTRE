@@ -67,7 +67,6 @@ jobs:
           tags: ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
           cache-from: type=registry,
             ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:buildcache
-          cache-to: type=inline
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             USER_UID=${{ env.USER_UID }}
@@ -140,7 +139,6 @@ jobs:
           tags: ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
           cache-from: type=registry,
             ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:buildcache
-          cache-to: type=inline
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             USER_UID=${{ env.USER_UID }}
