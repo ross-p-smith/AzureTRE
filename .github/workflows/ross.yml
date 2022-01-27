@@ -67,10 +67,11 @@ jobs:
           tags: ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
           cache-from: type=registry,
             ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:buildcache
-          # cache-to: type=registry,
-          #   ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev:buildcache,
-          #   mode=max
+          cache-to: type=registry,
+            ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:buildcache,
+            mode=max
           build-args: |
+            BUILDKIT_INLINE_CACHE=1
             USER_UID=${{ env.USER_UID }}
             USER_GID=${{ env.USER_GID }}
 
@@ -138,8 +139,10 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           push: true
           tags: ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
+          cache-from: type=registry,
+            ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:buildcache
           cache-to: type=registry,
-            ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev:buildcache,
+            ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:buildcache,
             mode=max
           build-args: |
             USER_UID=${{ env.USER_UID }}
