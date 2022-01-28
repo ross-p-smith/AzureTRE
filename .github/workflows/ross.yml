@@ -66,7 +66,6 @@ jobs:
             -t '${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest' \
             -f '.devcontainer/Dockerfile' \
             --cache-from ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest \
-            --cache-to=type=inline
             --output=type=docker
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             --build-arg USER_UID=$(id -u) \
