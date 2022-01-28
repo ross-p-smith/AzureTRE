@@ -9,10 +9,6 @@ on:
     branches: [ross/docker-cache]
   workflow_dispatch:
 
-# This will prevent multiple runs of this entire workflow.
-# We should NOT cancel in progress runs as that can destabilize the environment.
-concurrency: deploy-e2e
-
 env:
   USE_ENV_VARS_NOT_FILES: true
   DOCKER_BUILDKIT: 1
