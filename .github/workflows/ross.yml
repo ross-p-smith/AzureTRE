@@ -66,10 +66,9 @@ jobs:
             -t '${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest' \
             -f '.devcontainer/Dockerfile' \
             --cache-from ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest \
-            --output=type=docker
             --build-arg BUILDKIT_INLINE_CACHE=1 \
-            --build-arg USER_UID=$(id -u) \
-            --build-arg USER_GID=$(id -g) \
+            --build-arg USER_UID=${{ env.USER_UID }} \
+            --build-arg USER_GID=${{ env.USER_UID }} \
 
       # - name: Build DevContainer
       #   uses: docker/build-push-action@v2
