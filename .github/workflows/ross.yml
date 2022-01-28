@@ -63,7 +63,7 @@ jobs:
         run: |
           set -e
           docker build . \
-            -t '${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest' \
+            -t 'tredev1:latest' \
             -f '.devcontainer/Dockerfile' \
             --cache-from ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
@@ -154,4 +154,5 @@ jobs:
         shell: bash
         run: |
           set -e
+          docker image tag tredev1:latest ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
           docker image push ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
