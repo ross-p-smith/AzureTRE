@@ -48,6 +48,11 @@ jobs:
           username: ${{ secrets.ACTIONS_ACR_NAME }}
           password: ${{ secrets.ACTIONS_ACR_PASSWORD }}
 
+      - name: Pull latest devcontainer
+        shell: bash
+        run: |
+          docker pull ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
+
       - name: Set Variables
         run: |
           echo "USER_UID=$(id -u)" >> $GITHUB_ENV
@@ -59,7 +64,7 @@ jobs:
           # context: .
           file: .devcontainer/Dockerfile
           builder: ${{ steps.buildx.outputs.name }}
-          load: true
+          # load: true
           tags: ${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
           cache-from: type=registry,
             ref=${{ secrets.ACTIONS_ACR_NAME }}.azurecr.io/tredev1:latest
@@ -97,6 +102,7 @@ jobs:
           TRE_URL: "https://${{secrets.TRE_ID}}.${{secrets.LOCATION}}.cloudapp.azure.com"
           TRE_ID: "${{secrets.TRE_ID}}"
         run: |
+          set -e
           docker run --rm --mount \
             "type=bind,src=${{ github.workspace }},dst=/workspaces/tre" \
             -v /var/run/docker.sock:/var/run/docker.sock \
