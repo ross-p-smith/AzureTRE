@@ -102,3 +102,15 @@ resource "azurerm_key_vault_secret" "client_secret" {
   value        = azuread_service_principal_password.workspace.value
   key_vault_id = var.key_vault_id
 }
+
+resource "azuread_app_role_assignment" "workspace_owner" {
+  app_role_id         = azuread_service_principal.workspace.app_role_ids["WorkspaceOwner"]
+  principal_object_id = var.workspace_owner_object_id
+  resource_object_id  = azuread_service_principal.workspace.object_id
+}
+
+resource "azuread_service_principal_delegated_permission_grant" "user_impersonation" {
+  service_principal_object_id          = var.workspace_owner_object_id
+  resource_service_principal_object_id = azuread_service_principal.workspace.object_id
+  claim_values                         = ["user_impersonation"]
+}
