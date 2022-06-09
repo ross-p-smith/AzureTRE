@@ -120,3 +120,21 @@ resource "azurerm_private_endpoint" "azure_monitor_private_endpoint" {
     ]
   }
 }
+
+resource "random_uuid" "workbook_system_overview_id" {
+}
+
+resource "azurerm_resource_group_template_deployment" "workbook_system_overview" {
+  name                = "azure_monitor_workbook_system_overview"
+  resource_group_name = var.resource_group_name
+  deployment_mode     = "Incremental"
+  template_content    = file("${path.module}/workbook.template.json")
+  parameters_content = jsonencode({
+    "workbookDisplayName" : { value = "Trusted Research Environment v0.1 - ${var.resource_group_name}" },
+    "workbookId" : { value = random_uuid.workbook_system_overview_id.result },
+    "workbookContent" : { value = file("${path.module}/TRE.workbook") },
+    "workbookSourceId" : { value = "${azurerm_log_analytics_workspace.core.id}" },
+    "tags" : { value = local.tre_core_tags }
+  })
+  depends_on = [azurerm_log_analytics_workspace.core]
+}
