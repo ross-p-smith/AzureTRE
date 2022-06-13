@@ -37,9 +37,9 @@
           "DisableIpMasking": false,
           "WorkspaceResourceId": "[parameters('log_analytics_workspace_id')]",
           "IngestionMode": "LogAnalytics",
-          "publicNetworkAccessForIngestion": "Enabled",
-          "publicNetworkAccessForQuery": "Enabled",
-          "DisableLocalAuth": false
+          "publicNetworkAccessForIngestion": "Disabled",
+          "publicNetworkAccessForQuery": "Disabled",
+          "DisableLocalAuth": true
       }
     },
     {
