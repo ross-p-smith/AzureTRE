@@ -5,26 +5,22 @@
 1. Authentication and Authorization configuration set up as noted [here](../tre-admins/auth.md)
 1. An Azure Tre deployed environment.
 
-## Running the End-to-End tests locally
+## Registering bundles to run End-to-end tests
 
-1. Navigate to the `e2e_tests` folder: `cd e2e_tests`
-1. Define the following environment variables:
+End-to-end tests depend on certain bundles to be registered within the TRE API.
 
-    | Environment variable name | Description | Example value |
-    | ------------------------- | ----------- | ------------- |
-    | `RESOURCE_LOCATION` | The Azure Tre deployed environment `LOCATION`. | `eastus` |
-    | `TRE_ID` | The Azure TRE instance name - used for deployment of resources (can be set to anything when debugging locally). | `mytre-dev-3142` |
-    | `RESOURCE` | The application (client) ID of the [TRE API](../tre-admins/auth.md#tre-api) service principal. | |
-    | `AUTH_TENANT_ID` | The tenant ID of the Azure AD. | |
-    | `CLIENT_ID` | The application (client) ID of the [E2E Test app](../tre-admins/auth.md#tre-e2e-test) service principal. | |
-    | `SCOPE` | Scope(s) for the token. | `api://<TRE API app client ID>/user_impersonation` |
-    | `USERNAME` | The username of the [E2E User](../tre-admins/auth.md#end-to-end-test-user). | |
-    | `PASSWORD` | The password of the [E2E User](../tre-admins/auth.md#end-to-end-test-user). | |
-    | `TEST_WORKSPACE_APP_ID` | The application (client) ID of the [workspaces app](../tre-admins/auth.md#workspaces). | |
-    | `ACR_NAME` | The name of the TRE container registry. | |
+When End-to-end tests run in CI, they are registered as a prerequisite to running tests.
 
-1. Run the E2E tests:
+When running tests locally, use the `prepare-for-e2e` Makefile target:
 
-   ```bash
-   PYTHONPATH=. python -m pytest --junit-xml pytest_e2e.xml
-   ```
+```cmd
+make prepare-for-e2e
+```
+
+## Debugging the End-to-End tests
+
+Use the "Run and Debug" panel within Visual Studio Code, select "E2E Extended", "E2E Smoke" or "E2E Performance" in the drop down box and click play.
+
+- This will copy /workspaces/AzureTRE/templates/core/.env to /workspaces/AzureTRE/e2e_tests/.env for you which supplies your authentciation details
+
+- This will also use /workspaces/AzureTRE/templates/core/private.env file for other values.

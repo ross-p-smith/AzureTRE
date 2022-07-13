@@ -1,28 +1,21 @@
 import json
 import logging
-from contextlib import asynccontextmanager
+import uuid
 
-from azure.identity.aio import DefaultAzureCredential
 from azure.servicebus.aio import ServiceBusClient
 from pydantic import ValidationError, parse_obj_as
 
 from api.dependencies.database import get_db_client
+from api.routes.resource_helpers import get_timestamp
+from models.domain.request_action import RequestAction
+from db.repositories.resource_templates import ResourceTemplateRepository
+from service_bus.helpers import default_credentials, send_deployment_message, update_resource_for_step
+from db.repositories.operations import OperationRepository
 from core import config
 from db.errors import EntityDoesNotExist
 from db.repositories.resources import ResourceRepository
-from models.domain.resource import Status
-from models.domain.workspace import DeploymentStatusUpdateMessage
+from models.domain.operation import DeploymentStatusUpdateMessage, Operation, OperationStep, Status
 from resources import strings
-
-
-@asynccontextmanager
-async def default_credentials():
-    """
-    Context manager which yields the default credentials.
-    """
-    credential = DefaultAzureCredential(managed_identity_client_id=config.MANAGED_IDENTITY_CLIENT_ID)
-    yield credential
-    await credential.close()
 
 
 async def receive_message():
@@ -55,50 +48,141 @@ async def receive_message():
                         await receiver.complete_message(msg)
 
 
-def create_updated_deployment_document(resource: dict, message: DeploymentStatusUpdateMessage):
-    """Take a workspace and a deployment status update message and updates workspace with the message contents
+def update_overall_operation_status(operation: Operation, step: OperationStep, is_last_step: bool):
 
-    Args:
-        resource ([dict]): Dictionary representing a resource to update
-        message ([DeploymentStatusUpdateMessage]): Message which contains the updated information
+    operation.updatedWhen = get_timestamp()
 
-    Returns:
-        [dict]: Dictionary representing a resource with the deployment sub doc updated
+    # if it's a one step operation, just replicate the status
+    if len(operation.steps) == 1:
+        operation.status = step.status
+        operation.message = step.message
+        return
+
+    operation.status = Status.PipelineRunning
+    operation.message = "Multi step pipeline running. See steps for details."
+
+    if step.is_failure():
+        operation.status = get_failure_status_for_action(operation.action)
+        operation.message = f"Multi step pipeline failed on step {step.stepId}"
+
+    if step.is_success() and is_last_step:
+        operation.status = get_success_status_for_action(operation.action)
+        operation.message = "Multi step pipeline completed successfully"
+
+
+def get_success_status_for_action(action: RequestAction):
+    status = Status.ActionSucceeded
+
+    if action == RequestAction.Install:
+        status = Status.Deployed
+    elif action == RequestAction.UnInstall:
+        status = Status.Deleted
+    elif action == RequestAction.Upgrade:
+        status = Status.Updated
+
+    return status
+
+
+def get_failure_status_for_action(action: RequestAction):
+    status = Status.ActionFailed
+
+    if action == RequestAction.Install:
+        status = Status.DeploymentFailed
+    elif action == RequestAction.UnInstall:
+        status = Status.DeletingFailed
+    elif action == RequestAction.Upgrade:
+        status = Status.UpdatingFailed
+
+    return status
+
+
+def create_updated_resource_document(resource: dict, message: DeploymentStatusUpdateMessage):
     """
-    if resource["deployment"]["status"] in [Status.DeletingFailed, Status.Deleted]:
-        return resource  # cannot change terminal states
-    if resource["deployment"]["status"] in [Status.Failed, Status.Deployed, Status.Deleting]:
-        if message.status not in [Status.Deleted, Status.DeletingFailed]:
-            return resource  # can only transitions from deployed(deleting, failed) to deleted or failed to delete.
-
-    resource["deployment"]["status"] = message.status
-    resource["deployment"]["message"] = message.message
+    Merge the outputs with the resource document to persist
+    """
 
     # although outputs are likely to be relevant when resources are moving to "deployed" status,
     # lets not limit when we update them and have the resource process make that decision.
-    output_dict = {output.Name: output.Value.strip("'").strip('"') for output in message.outputs}
-
+    output_dict = {output.Name: output.Value.strip("'").strip('"') if isinstance(output.Value, str) else output.Value for output in message.outputs}
     resource["properties"].update(output_dict)
 
     return resource
 
 
-def update_status_in_database(resource_repo: ResourceRepository, message: DeploymentStatusUpdateMessage):
-    """Updates the deployment sub document with message content
-
-    Args:
-        resource_repo ([ResourceRepository]): Handle to the resource repository
-        message ([DeploymentStatusUpdateMessage]): Message which contains the updated information
-
-    Returns:
-        [bool]: True if document is updated, False otherwise.
+async def update_status_in_database(resource_repo: ResourceRepository, operations_repo: OperationRepository, resource_template_repo: ResourceTemplateRepository, message: DeploymentStatusUpdateMessage):
+    """
+    Get the operation the message references, and find the step within the operation that is to be updated
+    Update the status of the step. If it's a single step operation, copy the status into the operation status. If it's a multi step,
+    update the step and set the overall status to "pipeline_deploying".
+    If there is another step in the operation after this one, process the substitutions + patch, then enqueue a message to process it.
     """
     result = False
 
     try:
-        resource = resource_repo.get_resource_dict_by_id(message.id)
-        resource_repo.update_item_dict(create_updated_deployment_document(resource, message))
+        # update the op
+        operation = operations_repo.get_operation_by_id(str(message.operationId))
+        step_to_update = None
+        is_last_step = False
+
+        current_step_index = 0
+        for i, step in enumerate(operation.steps):
+            if step.stepId == message.stepId:
+                step_to_update = step
+                current_step_index = i
+                if i == (len(operation.steps) - 1):
+                    is_last_step = True
+
+        if step_to_update is None:
+            raise f"Error finding step {message.stepId} in operation {message.operationId}"
+
+        # update the step status
+        step_to_update.status = message.status
+        step_to_update.message = message.message
+        step_to_update.updatedWhen = get_timestamp()
+
+        # update the overall headline operation status
+        update_overall_operation_status(operation, step_to_update, is_last_step)
+
+        # save the operation
+        operations_repo.update_item(operation)
+
+        # copy the step status to the resource item, for convenience
+        resource_id = uuid.UUID(step_to_update.resourceId)
+
+        resource = resource_repo.get_resource_by_id(resource_id)
+        resource.deploymentStatus = step_to_update.status
+        resource_repo.update_item(resource)
+
+        # if the step failed, or this queue message is an intermediary ("now deploying..."), return here.
+        if not step_to_update.is_success():
+            return True
+
+        # update the resource doc to persist any outputs
+        resource = resource_repo.get_resource_dict_by_id(resource_id)
+        resource_to_persist = create_updated_resource_document(resource, message)
+        resource_repo.update_item_dict(resource_to_persist)
+
+        # more steps in the op to do?
+        if is_last_step is False:
+            assert current_step_index < (len(operation.steps) - 1)
+            next_step = operation.steps[current_step_index + 1]
+
+            resource_to_send = update_resource_for_step(
+                operation_step=next_step,
+                resource_repo=resource_repo,
+                resource_template_repo=resource_template_repo,
+                primary_resource=resource_repo.get_resource_by_id(operation.resourceId),  # need to get the resource again as it has been updated
+                resource_to_update_id=next_step.resourceId,
+                primary_action=operation.action,
+                user=operation.user)
+
+            # create + send the message
+            logging.info(f"Sending next step in operation to deployment queue -> step_id: {next_step.stepId}, action: {next_step.resourceAction}")
+            content = json.dumps(resource_to_send.get_resource_request_message_payload(operation_id=operation.id, step_id=next_step.stepId, action=next_step.resourceAction))
+            await send_deployment_message(content=content, correlation_id=operation.id, session_id=resource_to_send.id, action=next_step.resourceAction)
+
         result = True
+
     except EntityDoesNotExist:
         # Marking as true as this message will never succeed anyways and should be removed from the queue.
         result = True
@@ -121,8 +205,10 @@ async def receive_message_and_update_deployment(app) -> None:
 
     try:
         async for message in receive_message_gen:
+            operations_repo = OperationRepository(get_db_client(app))
             resource_repo = ResourceRepository(get_db_client(app))
-            result = update_status_in_database(resource_repo, message)
+            resource_template_repo = ResourceTemplateRepository(get_db_client(app))
+            result = await update_status_in_database(resource_repo, operations_repo, resource_template_repo, message)
             await receive_message_gen.asend(result)
     except StopAsyncIteration:  # the async generator when finished signals end with this exception.
         pass

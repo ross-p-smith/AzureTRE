@@ -1,5 +1,7 @@
 import base64
 import logging
+from collections import defaultdict
+from enum import Enum
 from typing import List
 import jwt
 import requests
@@ -18,13 +20,19 @@ from api.dependencies.database import get_db_client_from_request
 from db.repositories.workspaces import WorkspaceRepository
 
 
+class PrincipalType(Enum):
+    User = "User"
+    Group = "Group"
+    ServicePrincipal = "ServicePrincipal"
+
+
 class AzureADAuthorization(AccessService):
     _jwt_keys: dict = {}
 
     require_one_of_roles = None
 
     TRE_CORE_ROLES = ['TREAdmin', 'TREUser']
-    WORKSPACE_ROLES = ['WorkspaceOwner', 'WorkspaceResearcher']
+    WORKSPACE_ROLES_DICT = {'WorkspaceOwner': 'app_role_id_workspace_owner', 'WorkspaceResearcher': 'app_role_id_workspace_researcher'}
 
     def __init__(self, auto_error: bool = True, require_one_of_roles: list = None):
         super(AzureADAuthorization, self).__init__(
@@ -43,7 +51,7 @@ class AzureADAuthorization(AccessService):
         decoded_token = None
 
         # Try workspace app registration if appropriate
-        if 'workspace_id' in request.path_params and any(role in self.require_one_of_roles for role in self.WORKSPACE_ROLES):
+        if 'workspace_id' in request.path_params and any(role in self.require_one_of_roles for role in self.WORKSPACE_ROLES_DICT.keys()):
             # as we have a workspace_id not given, try decoding token
             logging.debug("Workspace ID was provided. Getting Workspace API app registration")
             try:
@@ -91,7 +99,7 @@ class AzureADAuthorization(AccessService):
             workspace_id = request.path_params['workspace_id']
             ws_repo = WorkspaceRepository(get_db_client_from_request(request))
             workspace = ws_repo.get_workspace_by_id(workspace_id)
-            ws_app_reg_id = workspace.properties['app_id']
+            ws_app_reg_id = workspace.properties['client_id']
 
             return ws_app_reg_id
         except EntityDoesNotExist as e:
@@ -177,29 +185,101 @@ class AzureADAuthorization(AccessService):
         return {'Authorization': 'Bearer ' + msgraph_token}
 
     @staticmethod
-    def _get_service_principal_endpoint(app_id) -> str:
-        return f"https://graph.microsoft.com/v1.0/serviceprincipals?$filter=appid eq '{app_id}'"
+    def _get_service_principal_endpoint(client_id) -> str:
+        return f"https://graph.microsoft.com/v1.0/serviceprincipals?$filter=appid eq '{client_id}'"
 
-    def _get_app_sp_graph_data(self, app_id: str) -> dict:
+    @staticmethod
+    def _get_service_principal_assigned_roles_endpoint(client_id) -> str:
+        return f"https://graph.microsoft.com/v1.0/serviceprincipals/{client_id}/appRoleAssignedTo?$select=appRoleId,principalId,principalType"
+
+    @staticmethod
+    def _get_batch_endpoint() -> str:
+        return "https://graph.microsoft.com/v1.0/$batch"
+
+    @staticmethod
+    def _get_users_endpoint(user_object_id) -> str:
+        return "/users/" + user_object_id + "?$select=mail,id"
+
+    @staticmethod
+    def _get_group_members_endpoint(group_object_id) -> str:
+        return "/groups/" + group_object_id + "/transitiveMembers?$select=mail,id"
+
+    def _get_app_sp_graph_data(self, client_id: str) -> dict:
         msgraph_token = self._get_msgraph_token()
-        sp_endpoint = self._get_service_principal_endpoint(app_id)
+        sp_endpoint = self._get_service_principal_endpoint(client_id)
         graph_data = requests.get(sp_endpoint, headers=self._get_auth_header(msgraph_token)).json()
         return graph_data
 
-    def _get_app_auth_info(self, app_id: str) -> dict:
-        graph_data = self._get_app_sp_graph_data(app_id)
+    def _get_user_emails_with_role_asssignment(self, client_id):
+        msgraph_token = self._get_msgraph_token()
+        sp_roles_endpoint = self._get_service_principal_assigned_roles_endpoint(client_id)
+        roles_graph_data = requests.get(sp_roles_endpoint, headers=self._get_auth_header(msgraph_token)).json()
+
+        batch_endpoint = self._get_batch_endpoint()
+        batch_request_body = self._get_batch_users_by_role_assignments_body(roles_graph_data)
+        headers = self._get_auth_header(msgraph_token)
+        headers["Content-type"] = "application/json"
+        users_graph_data = requests.post(batch_endpoint, json=batch_request_body, headers=headers).json()
+
+        return roles_graph_data, users_graph_data
+
+    def get_workspace_role_assignment_details(self, workspace: Workspace):
+        researcher_app_role_id = workspace.properties["app_role_id_workspace_researcher"]
+        owner_app_role_id = workspace.properties["app_role_id_workspace_owner"]
+        sp_id = workspace.properties["sp_id"]
+        roles_graph_data, users_graph_data = self._get_user_emails_with_role_asssignment(sp_id)
+        user_emails = {}
+        for user_data in users_graph_data["responses"]:
+            user_emails[user_data["body"]["id"]] = user_data["body"]["mail"]
+
+        workspace_role_assignments_details = defaultdict(list)
+        for role_assignment in roles_graph_data["value"]:
+            if role_assignment["principalType"] == "User":
+                if role_assignment["appRoleId"] == researcher_app_role_id:
+                    workspace_role_assignments_details["researcher_emails"].append(user_emails[role_assignment["principalId"]])
+                elif role_assignment["appRoleId"] == owner_app_role_id:
+                    workspace_role_assignments_details["owner_emails"].append(user_emails[role_assignment["principalId"]])
+
+        return workspace_role_assignments_details
+
+    def _get_batch_users_by_role_assignments_body(self, roles_graph_data):
+        request_body = {"requests": []}
+        met_principal_ids = set()
+        for role_assignment in roles_graph_data['value']:
+            if role_assignment["principalId"] not in met_principal_ids:
+                batch_url = ""
+                if role_assignment["principalType"] == "User":
+                    batch_url = self._get_users_endpoint(role_assignment["principalId"])
+                elif role_assignment["principalType"] == "Group":
+                    batch_url = self._get_group_members_endpoint(role_assignment["principalId"])
+                else:
+                    continue
+                request_body["requests"].append(
+                    {"method": "GET",
+                        "url": batch_url,
+                        "id": role_assignment["principalId"]})
+                met_principal_ids.add(role_assignment["principalId"])
+
+        return request_body
+
+    # This method is called when you create a workspace and you already have an AAD App Registration
+    # to link it to. You pass in the client_id and go and get the extra information you need from AAD
+    # If the client_id is `auto_create`, then these values will be written by Terraform.
+    def _get_app_auth_info(self, client_id: str) -> dict:
+        graph_data = self._get_app_sp_graph_data(client_id)
         if 'value' not in graph_data or len(graph_data['value']) == 0:
             logging.debug(graph_data)
-            raise AuthConfigValidationError(f"{strings.ACCESS_UNABLE_TO_GET_INFO_FOR_APP} {app_id}")
+            raise AuthConfigValidationError(f"{strings.ACCESS_UNABLE_TO_GET_INFO_FOR_APP} {client_id}")
 
         app_info = graph_data['value'][0]
-        sp_id = app_info['id']
-        roles = app_info['appRoles']
+        authInfo = {'sp_id': app_info['id'], 'scope_id': app_info['servicePrincipalNames'][0]}
 
-        return {
-            'sp_id': sp_id,
-            'roles': {role['value']: role['id'] for role in roles}
-        }
+        # Convert the roles into ids (We could have more roles defined in the app than we need.)
+        for appRole in app_info['appRoles']:
+            if appRole['value'] in self.WORKSPACE_ROLES_DICT.keys():
+                authInfo[self.WORKSPACE_ROLES_DICT[appRole['value']]] = appRole['id']
+
+        return authInfo
 
     def _get_role_assignment_graph_data(self, user_id: str) -> dict:
         msgraph_token = self._get_msgraph_token()
@@ -208,16 +288,19 @@ class AzureADAuthorization(AccessService):
         return graph_data
 
     def extract_workspace_auth_information(self, data: dict) -> dict:
-        if "app_id" not in data:
-            raise AuthConfigValidationError(strings.ACCESS_PLEASE_SUPPLY_APP_ID)
+        if "client_id" not in data:
+            raise AuthConfigValidationError(strings.ACCESS_PLEASE_SUPPLY_CLIENT_ID)
 
-        auth_info = self._get_app_auth_info(data["app_id"])
+        auth_info = {}
+        # The user may want us to create the AAD workspace app and therefore they
+        # don't know the client_id yet.
+        if data["client_id"] != "auto_create":
+            auth_info = self._get_app_auth_info(data["client_id"])
 
-        for role in ['WorkspaceOwner', 'WorkspaceResearcher']:
-            if role not in auth_info['roles']:
-                raise AuthConfigValidationError(f"{strings.ACCESS_APP_IS_MISSING_ROLE} {role}")
-
-        auth_info["app_id"] = data["app_id"]
+            # Check we've get all our required roles
+            for role in self.WORKSPACE_ROLES_DICT.items():
+                if role[1] not in auth_info:
+                    raise AuthConfigValidationError(f"{strings.ACCESS_APP_IS_MISSING_ROLE} {role[0]}")
 
         return auth_info
 
@@ -231,17 +314,17 @@ class AzureADAuthorization(AccessService):
         return [RoleAssignment(role_assignment['resourceId'], role_assignment['appRoleId']) for role_assignment in graph_data['value']]
 
     def get_workspace_role(self, user: User, workspace: Workspace, user_role_assignments: List[RoleAssignment]) -> WorkspaceRole:
-        if 'sp_id' not in workspace.authInformation or 'roles' not in workspace.authInformation:
+        if 'sp_id' not in workspace.properties:
             raise AuthConfigValidationError(strings.AUTH_CONFIGURATION_NOT_AVAILABLE_FOR_WORKSPACE)
 
-        workspace_sp_id = workspace.authInformation['sp_id']
-        workspace_roles = workspace.authInformation['roles']
+        workspace_sp_id = workspace.properties['sp_id']
 
-        if 'WorkspaceOwner' not in workspace_roles or 'WorkspaceResearcher' not in workspace_roles:
-            raise AuthConfigValidationError(strings.AUTH_CONFIGURATION_NOT_AVAILABLE_FOR_WORKSPACE)
+        for requiredRole in self.WORKSPACE_ROLES_DICT.values():
+            if requiredRole not in workspace.properties:
+                raise AuthConfigValidationError(strings.AUTH_CONFIGURATION_NOT_AVAILABLE_FOR_WORKSPACE)
 
-        if RoleAssignment(resource_id=workspace_sp_id, role_id=workspace_roles['WorkspaceOwner']) in user_role_assignments:
+        if RoleAssignment(resource_id=workspace_sp_id, role_id=workspace.properties['app_role_id_workspace_owner']) in user_role_assignments:
             return WorkspaceRole.Owner
-        if RoleAssignment(resource_id=workspace_sp_id, role_id=workspace_roles['WorkspaceResearcher']) in user_role_assignments:
+        if RoleAssignment(resource_id=workspace_sp_id, role_id=workspace.properties['app_role_id_workspace_researcher']) in user_role_assignments:
             return WorkspaceRole.Researcher
         return WorkspaceRole.NoRole

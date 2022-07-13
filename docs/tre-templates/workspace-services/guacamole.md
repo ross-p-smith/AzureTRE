@@ -14,19 +14,16 @@ Service Tags:
 
 - [A base workspace bundle installed](../workspaces/base.md)
 
-## Manual Deployment
+## Guacamole Workspace Service Configuration
 
-1. Create a copy of `templates/workspace_services/guacamole/.env.sample` with the name `.env` and update the variables with the appropriate values.
+When deploying a Guacamole service into a workspace the following properties need to be configured.
 
-  | Environment variable name | Description |
-  | ------------------------- | ----------- |
-  | `ID` | A GUID to identify the workspace service. The last 4 characters of this `ID` can be found in the resource names of the workspace service resources. |
-  | `WORKSPACE_ID` | The GUID identifier used when deploying the base workspace bundle. |
-  | `GUACAMOLE_IMAGE_TAG` | The tag of the Guacamole Image to use - the tag will be the version (you can find the version in `templates\workspace\services\guacamole\version.txt`) |
+### Optional Properties
 
-1. Build and install the Guacamole Service bundle
-
-  ```cmd
-  make porter-build DIR=./templates/workspace_services/guacamole
-  make porter-install DIR=./templates/workspace_services/guacamole
-  ```
+| Property | Options | Description |
+| -------- | ------- | ----------- |
+| `guac_disable_copy` | `true`/`false` (Default: `true`) | Disable Copy functionality |
+| `guac_disable_paste` | `true`/`false` (Default: `false`) | Disable Paste functionality" |
+| `guac_enable_drive` | `true`/`false` (Default: `true`) | Enable mounted drive |
+| `guac_disable_download` | `true`/`false` (Default: `true`) | Disable files download |
+| `is_exposed_externally` | `true`/`false` (Default: `true`) | Is the Guacamole service exposed outside of the vnet |

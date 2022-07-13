@@ -5,3 +5,9 @@
 **/*_backend.tf
 
 Dockerfile.tmpl
+
+.env*
+terraform/deploy.sh
+terraform/destroy.sh
+guacamole-server/
+user_resources/

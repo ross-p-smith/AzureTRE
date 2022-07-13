@@ -28,7 +28,7 @@ Provision an InnerEye workspace by invoking a POST to ```https://<treid>.<region
             "properties": {
                 "display_name": "InnerEye",
                 "description": "InnerEyer workspace",
-                "app_id": "<app_id>",
+                "client_id": "<WORKSPACE_API_CLIENT_ID>",
                 "inference_sp_client_id": "<spn_client_id>",
                 "inference_sp_client_secret": "<spn_client_secret>"
             }
@@ -45,9 +45,9 @@ This will provision Base Workspace, with AML service and InnerEye service, inclu
 1. Log onto a TREAdmin Jumpbox and mirror Github repos needed by InnerEye Helloworld:
 
     ```cmd
-    ./scripts/gitea_migrate_repo.sh -t <tre_id> -g https://github.com/microsoft/InnerEye-DeepLearning
-    ./scripts/gitea_migrate_repo.sh -t <tre_id> -g https://github.com/analysiscenter/radio
-    ./scripts/gitea_migrate_repo.sh -t <tre_id> -g https://github.com/microsoft/InnerEye-Inference
+    ./templates/workspace_services/gitea/gitea_migrate_repo.sh -t <tre_id> -g https://github.com/microsoft/InnerEye-DeepLearning
+    ./templates/workspace_services/gitea/gitea_migrate_repo.sh -t <tre_id> -g https://github.com/analysiscenter/radio
+    ./templates/workspace_services/gitea/gitea_migrate_repo.sh -t <tre_id> -g https://github.com/microsoft/InnerEye-Inference
     ```
 
 ### Setup the InnerEye run from AML Compute Instance
@@ -64,7 +64,7 @@ This will provision Base Workspace, with AML service and InnerEye service, inclu
     sudo apt-get install git-lfs
     git lfs install
     git lfs pull
-    export PIP_INDEX_URL=https://nexus-<TRE_ID>.azurewebsites.net/repository/pypi-proxy-repo/simple
+    export PIP_INDEX_URL=https://nexus-<TRE_ID>.azurewebsites.net/repository/apt-pypi/simple
     conda init
     conda env create --file environment.yml
     conda activate InnerEye

@@ -9,19 +9,23 @@ The base workspace template contains the following resources:
 - Key Vault
 - VNet Peer to Core VNet
 - Network Security Group
+- App Service Plan
 
-## Manual Deployment
+## Workspace Configuration
 
-1. Create a copy of `/templates/workspaces/base/.env.sample` with the name `.env` and update the variables with the appropriate values.
+When deploying a workspace the following properties need to be configured.
 
-  | Environment variable name | Description |
-  | ------------------------- | ----------- |
-  | `ID` | A GUID to identify the workspace. The last 4 characters of this `ID` can be found in the resource names of the workspace resources; for example, a `ID` of `2e84dad0-9d4f-42bd-8e44-3d04095eab12` will result in a resource group name for workspace of `rg-<tre-id>-ab12`. |
-  | `ADDRESS_SPACE` | The address space for the workspace virtual network, must be inside the `TRE_ADDRESS_SPACE` defined when deploying the TRE and not overlap with any other address spaces. |
+### Required Properties
 
-1. Build and deploy the base workspace
+| Property | Options | Description |
+| -------- | ------- | ----------- |
+| `client_id` | Valid client ID of the Workspace App Registration. | The OpenID client ID which should be submitted to the OpenID service when necessary. This value is typically provided to you by the OpenID service when OpenID credentials are generated for your application. |
+| `client_secret` | Valid client secret. |
 
-  ```cmd
-  make porter-build DIR=./templates/workspaces/base
-  make porter-install DIR=./templates/workspaces/base
-  ```
+## Azure Trusted Services
+*Azure Trusted Services* are allowed to connect to both the key vault and storage account provsioned within the workspace. If this is undesirable additonal resources without this setting configured can be deployed.
+
+Further details around which Azure services are allowed to connect can be found below:
+
+- Key Vault: <https://docs.microsoft.com/en-us/azure/key-vault/general/overview-vnet-service-endpoints#trusted-services>
+- Azure Storage: <https://docs.microsoft.com/en-us/azure/storage/common/storage-network-security?msclkid=ee4e79e4b97911eca46dae54da464d11&tabs=azure-portal#trusted-access-for-resources-registered-in-your-subscription>

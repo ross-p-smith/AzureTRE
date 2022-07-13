@@ -22,7 +22,7 @@
       }
     },
     {
-      "name": "acr_name",
+      "name": "mgmt_acr_name",
       "source": {
         "env": "ACR_NAME"
       }
@@ -31,18 +31,6 @@
       "name": "mgmt_resource_group_name",
       "source": {
         "env": "MGMT_RESOURCE_GROUP_NAME"
-      }
-    },
-    {
-      "name": "api_client_id",
-      "source": {
-        "env": "API_CLIENT_ID"
-      }
-    },
-    {
-      "name": "aad_tenant_id",
-      "source": {
-        "env": "AAD_TENANT_ID"
       }
     },
     {
@@ -61,6 +49,61 @@
       "name": "tfstate_storage_account_name",
       "source": {
         "env": "MGMT_STORAGE_ACCOUNT_NAME"
+      }
+    },
+
+    {
+      "name": "guac_disable_copy",
+      "source": {
+        "env": "GUAC_DISABLE_COPY"
+      }
+    },
+    {
+      "name": "guac_disable_download",
+      "source": {
+        "env": "GUAC_DISABLE_DOWNLOAD"
+      }
+    },
+    {
+      "name": "guac_disable_paste",
+      "source": {
+        "env": "GUAC_DISABLE_PASTE"
+      }
+    },
+    {
+      "name": "guac_drive_name",
+      "source": {
+        "env": "GUAC_DRIVE_NAME"
+      }
+    },
+    {
+      "name": "guac_drive_path",
+      "source": {
+        "env": "GUAC_DRIVE_PATH"
+      }
+    },
+    {
+      "name": "guac_enable_drive",
+      "source": {
+        "env": "GUAC_ENABLE_DRIVE"
+      }
+    },
+    {
+      "name": "image_name",
+      "source": {
+        "env": "IMAGE_NAME"
+      }
+    },
+    {
+      "name": "image_tag",
+      "source": {
+        "env": "IMAGE_TAG"
+      }
+    },
+    {
+      "name": "is_exposed_externally",
+      "source": {
+        "env": "IS_EXPOSED_EXTERNALLY"
       }
     }
   ]

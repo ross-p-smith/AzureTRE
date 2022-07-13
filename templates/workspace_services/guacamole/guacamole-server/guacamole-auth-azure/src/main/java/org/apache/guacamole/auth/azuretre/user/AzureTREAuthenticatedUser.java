@@ -19,29 +19,29 @@
 
 package org.apache.guacamole.auth.azuretre.user;
 
-import com.google.inject.Inject;
 import org.apache.guacamole.net.auth.AbstractAuthenticatedUser;
 import org.apache.guacamole.net.auth.AuthenticationProvider;
 import org.apache.guacamole.net.auth.Credentials;
 
 public class AzureTREAuthenticatedUser extends AbstractAuthenticatedUser {
 
-    @Inject
-    private AuthenticationProvider authProvider;
+    private final AuthenticationProvider authProvider;
 
-    private Credentials credentials;
+    private final Credentials credentials;
 
-    private String objectId;
+    private final String objectId;
 
-    private String token;
+    private final String accessToken;
 
-    public void init(final Credentials credentials,
-                     final String token,
-                     final String username,
-                     final String objectId) {
+    public AzureTREAuthenticatedUser(final Credentials credentials,
+                                   final String accessToken,
+                                   final String username,
+                                   final String objectId,
+                                   final AuthenticationProvider provider) {
         this.credentials = credentials;
-        this.token = token;
+        this.accessToken = accessToken;
         this.objectId = objectId;
+        this.authProvider = provider;
         setIdentifier(username.toLowerCase());
     }
 
@@ -56,8 +56,9 @@ public class AzureTREAuthenticatedUser extends AbstractAuthenticatedUser {
     }
 
     public String getAccessToken() {
-        return token;
+        return accessToken;
     }
+
     public String getObjectId() {
         return objectId;
     }

@@ -1,3 +1,4 @@
+---
 site_name: Azure TRE
 site_url: https://github.com/microsoft/AzureTRE
 site_description: Azure TRE
@@ -41,9 +42,7 @@ nav:
       - User Roles: 'azure-tre-overview/user-roles.md'
       - Architecture: 'azure-tre-overview/architecture.md'
       - Network Architecture: 'azure-tre-overview/networking.md'
-      - Shared Services:
-          - Gitea (Source Mirror): 'azure-tre-overview/shared-services/gitea.md'
-          - Nexus (Package Mirror): 'azure-tre-overview/shared-services/nexus.md'
+      - Azure Resource Breakdown: 'azure-tre-overview/tre-resources-breakdown.md'
   - TRE Admins:
       - Setup Instructions:
           - 1. Getting Started: 'tre-admins/setup-instructions/getting-started.md'
@@ -53,26 +52,45 @@ nav:
           - 4. Configuring Shared Services: 'tre-admins/setup-instructions/configuring-shared-services.md'
           - 5. Installing Base Workspace: 'tre-admins/setup-instructions/installing-base-workspace.md'
           - 6. Installing Workspace Service and User Resource: 'tre-admins/setup-instructions/installing-workspace-service-and-user-resource.md'
-          - Tear-down: 'tre-admins/setup-instructions/tear-down.md'
+      - Start-stop: 'tre-admins/start-stop.md'
+      - Tear-down: 'tre-admins/tear-down.md'
       - Environment Variables: 'tre-admins/environment-variables.md'
-      - Authentication and Authorization: 'tre-admins/auth.md'
+      - Authentication and Authorization:
+          - Introduction: 'tre-admins/auth.md'
+          - Manual Setup: tre-admins/identities/auth-manual.md
+          - Identities:
+              - Application Admin: tre-admins/identities/application_admin.md
+              - API: tre-admins/identities/api.md
+              - Client: tre-admins/identities/client.md
+              - Automation Test Account: tre-admins/identities/test-account.md
+              - Workspaces: tre-admins/identities/workspace.md
       - Registering Templates: 'tre-admins/registering-templates.md'
       - Troubleshooting Guide: 'tre-admins/troubleshooting-guide.md'
   - TRE Developers:
+      - 'tre-developers/index.md'
       - API: 'tre-developers/api.md'
+      - UI: 'tre-developers/ui.md'
       - Resource Processor: 'tre-developers/resource-processor.md'
       - End to End Tests: 'tre-developers/end-to-end-tests.md'
+      - Letsencrypt: 'tre-developers/letsencrypt.md'
   - TRE Workspace Authors:
       - Authoring Workspace Templates: 'tre-workspace-authors/authoring-workspace-templates.md'
       - Firewall Rules: 'tre-workspace-authors/firewall-rules.md'
   - Templates:
       - Workspaces:
           - Base: 'tre-templates/workspaces/base.md'
-          - InnerEye: 'tre-templates/workspaces/inner-eye.md'
       - Workspace Services:
           - Azure ML: 'tre-templates/workspace-services/azure-ml.md'
-          - DevTest Labs: 'tre-templates/workspace-services/dev-test-labs.md'
+          - Gitea: 'tre-templates/workspace-services/gitea.md'
           - Guacamole: 'tre-templates/workspace-services/guacamole.md'
           - InnerEye: 'tre-templates/workspace-services/inner-eye.md'
+          - MLFlow: 'tre-templates/workspace-services/mlflow.md'
+      - Shared Services:
+          - Gitea (Source Mirror): 'tre-templates/shared-services/gitea.md'
+          - Nexus (Package Mirror): 'tre-templates/shared-services/nexus.md'
       - User Resources:
-          - Guacamole Win10 VM: 'tre-templates/user-resources/guacamole-win10-vm.md'
+          - Guacamole Windows VM: 'tre-templates/user-resources/guacamole-windows-vm.md'
+          - Guacamole Linux VM: 'tre-templates/user-resources/guacamole-linux-vm.md'
+      - Pipeline Templates:
+          - Overview: 'tre-templates/pipeline-templates/overview.md'
+          - Pipeline Schema: 'tre-templates/pipeline-templates/pipeline-schema.md'

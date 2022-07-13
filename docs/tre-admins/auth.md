@@ -1,180 +1,57 @@
-# Authentication and authorization
+# Introduction to Authentication and Authorization
 
-[Azure Active Directory (AAD)](https://docs.microsoft.com/en-us/azure/active-directory/fundamentals/active-directory-whatis) is the backbone of Authentication and Authorization in the TRE.
+[Azure Active Directory (AAD)](https://docs.microsoft.com/en-us/azure/active-directory/fundamentals/active-directory-whatis) is the backbone of Authentication and Authorization in the Trusted Research Environment. AAD holds the identities of all the TRE/workspace users, including administrators, and connects the identities with applications which define the permissions for each user role.
 
-It holds the identities of all TRE/workspace users, including administrators, and connects the identities with app registrations defining the privileges per user roles.
+It is common that the Azure Administrator is not necessarily the Azure Active Directory Administrator. Due to this, this step may have to be carried out by a different individual/team. We have automated this into a simple command, but should you wish, you can run these steps manually.
+
+This page describes the automated Auth setup for TRE.
+
+## Pre-requisites
+The automation utilises a `make` command, which reads a few environment variables and creates the AAD assets. The following values are needed to be in place before you run the creation process. (`/templates/core/.env`)
+
+| Key | Description |
+| ----------- | ----------- |
+|TRE_ID|This is used to build up the name of the identities|
+|AAD_TENANT_ID|The tenant id of where your AAD identities will be placed. This can be different to the tenant where your Azure resources are created.|
+| LOCATION | Where your Azure assets will be provisioned (eg. westeurope). This is used to add a redirect URI from the Swagger UI to the API Application.
+|AUTO_WORKSPACE_APP_REGISTRATION| Default of `false`. Setting this to true grants the `Application.ReadWrite.All` permission to the *Application Admin* identity. This identity is used to manage other AAD applications that it owns, e.g. Workspaces. If you do not set this, the identity will have `Application.ReadWrite.OwnedBy`. Further information can be found [here](./identities/application_admin.md).
+
+## Create Authentication assets
+You can build all of the Identity assets by running the following at the command line
+```bash
+make auth
+```
+Follow the instructions and prompts in the script. This script will require manual confirmations at various stages, and cannot be run unattended. This will create the five identities outlined below, and if succesful you will not need to do anything apart from copy credential values into `/templates/core/.env` when told to do so.
+
+!!! note
+    Please note that if you do not copy values to the .env when instructed, the creation process could fail. The details below are for your understanding.
+
+### Using a separate Azure Active Directory tenant
+
+!!! caution
+    This section is only relevant it you are setting up a separate Azure Active Directory tenant for use.
+    This is only recommended for development environments when you don't have the required permissions to register applications in Azure Active Directory.
+    Using a separate Azure Active Directory tenant will prevent you from using certain Azure Active Directory integrated services.
+    For production deployments, work with your Azure Active Directory administrator to perform the required registration
+
+1. Create an Azure Active Directory tenant
+    To create a new Azure Active Directory tenant, [follow the steps here](https://docs.microsoft.com/en-us/azure/active-directory/develop/quickstart-create-new-tenant)
+
+1. Follow the steps outlined above. `make auth` should logon to the correct tenant. Make sure you logon back to the correct tenant before running `make all`.
+
 
 ## App registrations
 
-App registrations (represented by service principals) define the privileges enabling access to the TRE system (e.g., [API](../tre-developers/api.md)) as well as the workspaces.
+App registrations (represented by service principals) define the various access permissions to the TRE system. There are a total of five main Applications of interest.
 
-You can create the app registrations needed for the API by running the `/scripts/aad-app-reg.sh` script.
-
-Alternatively, you can create the app registrations manually via the [Azure Portal](https://docs.microsoft.com/azure/active-directory/develop/quickstart-register-app). The requirements are listed below.
-
-!!! note
-    Additional app registrations are required to run the E2E tests, and also to create workspaces - these are not configured by the `aad-app-reg.sh` script. Find information below on how to set these up.
+| AAD Application | Description |
+| ----------- | ----------- |
+| TRE API application | This is the main application and used to auhtorize access to the [TRE API](../tre-developers/api.md). |
+| TRE Swagger UI | This is used to authenticate identities who wish to use the Swagger UI or other clients. |
+| Application Admin | There are times when workspace services need to update the AAD Application. For example, Guacamole needs to add a redirect URI to the Workspace AAD Application. This identity is used to manage AAD Applications.
+| Automation App | This application is created so that you can run the tests or any CI/CD capability without the need to divulge a user password. This is particularly important if your tenant is MFA enabled. |
+| Workspace API | Typically you would have an application securing one or more workspaces that are created by TRE. |
 
 Some of the applications require **admin consent** to allow them to validate users against the AAD. Check the Microsoft Docs on [Configure the admin consent workflow](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/configure-admin-consent-workflow) on how to request admin consent and handle admin consent requests.
 
-### App registration script
-
-The `/scripts/aad-app-reg.sh` script automatically sets up the app registrations with the required permissions to run Azure TRE. It will create and configure the two main app registrations: **TRE API** and **TRE Swagger UI**.
-
-Example on how to run the script:
-
-```bash
-./aad-app-reg.sh \
-    -n <Prefix of the app registration names e.g., TRE> \
-    -r https://<TRE ID>.<Azure location>.cloudapp.azure.com/api/docs/oauth2-redirect \
-    -a
-```
-
-| Argument | Description |
-| -------- | ----------- |
-| `-n` | The prefix of the name of the app registrations. `TRE` will give you `TRE API` and `TRE Swagger UI`. |
-| `-r` | The reply URL for the Swagger UI app. Use the values of the [environment variables](./environment-variables.md) `TRE_ID` and `LOCATION` in the URL. Reply URL for the localhost, `http://localhost:8000/api/docs/oauth2-redirect`, will be added by default. |
-| `-a` | Grants admin consent for the app registrations. This is required for them to function properly, but requires AAD admin privileges. |
-
-!!! caution
-    The script will create an app password (client secret) for the **TRE API** app; make sure to take note of it in the script output as it is only shown once. In case the secret is lost, the script, when run again, can reset it and display the new one.
-
-### TRE API
-
-The **TRE API** app registration defines the permissions, scopes and app roles for API users to authenticate and authorize API calls.
-
-#### API permissions - TRE API
-
-| API/permission name | Type | Description | Admin consent required | Status | TRE usage |
-| ------------------- | ---- | ----------- | ---------------------- | ------ | --------- |
-| Microsoft Graph/Directory.Read.All (`https://graph.microsoft.com/Directory.Read.All`) | Application* | Allows the app to read data in your organization's directory, such as users, groups and apps, without a signed-in user. | Yes | Granted for *[directory name]* | Used e.g., to retrieve app registration details, user associated app roles etc. |
-| Microsoft Graph/User.Read.All (`https://graph.microsoft.com/User.Read.All`) | Application* | Allows the app to read user profiles without a signed in user. | Yes | Granted for *[directory name]* | Reading user role assignments to check that the user has permissions to execute an action e.g., to view workspaces. See `/api_app/services/aad_authentication.py`. |
-
-*) See the difference between [delegated and application permission](https://docs.microsoft.com/graph/auth/auth-concepts#delegated-and-application-permissions) types.
-
-See [Microsoft Graph permissions reference](https://docs.microsoft.com/graph/permissions-reference) for more details.
-
-#### Scopes - TRE API
-
-* `api://<Application (client) ID>/` **`user_impersonation`** - Allow the app to access the TRE API on behalf of the signed-in user
-
-#### App roles - TRE API
-
-| Display name | Description | Allowed member types | Value |
-| ------------ | ----------- | -------------------- | ----- |
-| TRE Administrators | Provides resource administrator access to the TRE. | Users/Groups,Applications | `TREAdmin` |
-| TRE Users | Provides access to the TRE application. | Users/Groups,Applications | `TREUser` |
-
-#### Authentication - TRE API
-
-The **TRE API** app registration requires no redirect URLs defined or anything else for that matter. From a security standpoint it should be noted that public client flows should not be allowed. As the identity of the client application cannot be verified (see the image below taken from app registration authentication blade in Azure Portal).
-
-![Allow public client flows - No](../assets/app-reg-authentication-allow-public-client-flows-no.png)
-
-### TRE Swagger UI
-
-**TRE Swagger UI** app registration:
-
-* Controls the access to the Swagger UI of the TRE API
-* Has no scopes or app roles defined
-
-#### API permissions - TRE Swagger UI
-
-| API/permission name | Type | Description | Admin consent required | Status |
-| ------------------- | ---- | ----------- | ---------------------- | ------ |
-| Microsoft Graph/offline_access (`https://graph.microsoft.com/offline_access`) | Delegated* | Allows the app to see and update the data you gave it access to, even when users are not currently using the app. | No | Granted for *[directory name]* |
-| Microsoft Graph/openid (`https://graph.microsoft.com/openid`) | Delegated* | Allows users to sign in to the app with their work or school accounts and allows the app to see basic user profile information. | No | Granted for *[directory name]* |
-| TRE API/user_impersonation (`api://<TRE API Application (client) ID>/user_impersonation`) | Delegated* | See [TRE API app registration scopes](#scopes---tre-api). | No | Granted for *[directory name]* |
-
-*) See the difference between [delegated and application permission](https://docs.microsoft.com/graph/auth/auth-concepts#delegated-and-application-permissions) types.
-
-#### Authentication - TRE Swagger UI
-
-Redirect URLs:
-
-* `https://<TRE ID>.<Azure location>.cloudapp.azure.com/docs/oauth2-redirect`
-* `http://localhost:8000/docs/oauth2-redirect` - For local testing
-
-### TRE e2e test
-
-The **TRE e2e test** app registration is used to authorize end-to-end test scenarios. It has no scopes or app roles defined.
-
-!!! note
-    - This app registration is only needed and used for **testing**
-    - As of writing this, there is no automated way provided for creating the **TRE e2e test** app registration, so it needs to be created manually.
-
-#### API permissions - TRE e2e test
-
-| API/permission name | Type | Description | Admin consent required |
-| ------------------- | ---- | ----------- | ---------------------- |
-| Microsoft Graph/openid (`https://graph.microsoft.com/openid`) | Delegated | Allows users to sign in to the app with their work or school accounts and allows the app to see basic user profile information. | No |
-| Microsoft Graph/User.Read (`https://graph.microsoft.com/User.Read`) | Delegated | Allows users to sign-in to the app, and allows the app to read the profile of signed-in users. It also allows the app to read basic company information of signed-in users. | No |
-| <TRE APP client>.user_impersonation | Delegated | Allow the app access the TRE API on behalf of the signed-in user | No |
-
-#### Authentication - TRE e2e test
-
-1. Define Redirect URLs:
-
-    In the **TRE e2e test** app registration go to Authentication -> Add platform -> Select Mobile & Desktop and add:
-
-    ```cmd
-    https://login.microsoftonline.com/common/oauth2/nativeclient
-    msal<TRE e2e test app registration application (client) ID>://auth
-    ```
-
-    ![Add auth platform](../assets/aad-add-auth-platform.png)
-
-1. Allow public client flows (see the image below). This enables the end-to-end tests to use a username and password combination to authenticate.
-
-    ![Allow public client flows - Yes](../assets/app-reg-authentication-allow-public-client-flows-yes.png)
-
-!!! warning
-    OAuth 2.0 Public client flow cannot verify the the client application identity, it should only be enabled if needed.
-
-#### End-to-end test user
-
-The end-to-end test authentication and authorization is done via a dummy user, using its username and password, dedicated just for running the tests.
-
-The user is linked to the application (app registration) the same way as any other users (see [Enabling users](#enabling-users)).
-
-The end-to-end test should be added to **TRE Administrator** role exposed by the **TRE API** application, and to the **Owners** role exposed by the Workspaces application.
-
-### Workspaces
-
-Access to workspaces is also controlled using app registrations - one per workspace. The configuration of the app registration depends on the nature of the workspace, but this section covers the typical minimum settings.
-
-!!! caution
-    The app registration for a workspace is not created by the [API](../tre-developers/api.md). One needs to be present (created manually) before using the API to provision a new workspace.
-
-#### Authentication - Workspaces
-
-Same as [TRE API](#authentication---tre-api).
-
-#### API permissions - Workspaces
-
-| API/permission name | Type | Description | Admin consent required |
-| ------------------- | ---- | ----------- | ---------------------- |
-| Microsoft Graph/User.Read (`https://graph.microsoft.com/User.Read`) | Delegated | Allows users to sign-in to the app, and allows the app to read the profile of signed-in users. It also allows the app to read basic company information of signed-in users. | No |
-| Workspace API/user_impersonation (`api://<Workspace API Application (client) ID>/user_impersonation`) | Delegated* | Allows the app to access the workspace API on behalf of the user | No | Granted for *[directory name]* |
-
-#### App roles
-
-| Display name | Description | Allowed member types | Value |
-| ------------ | ----------- | -------------------- | ----- |
-| Owners | Provides ownership access to workspace. | Users/Groups | `WorkspaceOwner` |
-| Researchers | Provides access to workspace. | Users/Groups | `WorkspaceResearcher` |
-
-## Enabling users
-
-For a user to gain access to the system, they have to:
-
-1. Have an identity in Azure AD
-1. Be linked with an app registration and assigned a role
-
-When these requirements are met, the user can sign-in using their credentials and use their privileges to use the API, login to workspace environment etc. based on their specific roles.
-
-![User linked with app registrations](../assets/aad-user-linked-with-app-regs.png)
-
-The users can also be linked via the Enterprise application view:
-
-![Adding users to Enterprise application](../assets/adding-users-to-enterprise-application.png)
+We strongly recommend that you use `make auth` to create the AAD assets as this has been tested extensively. Should you wish to create these manually via the [Azure Portal](https://docs.microsoft.com/azure/active-directory/develop/quickstart-register-app); more information can be found [here](./identities/auth-manual.md).

@@ -21,10 +21,6 @@ def get_sample_user_resource(user_resource_id: str) -> dict:
         "azureStatus": {
             "powerState": "Running",
         },
-        "deployment": {
-            "status": "not_deployed",
-            "message": "This resource is not yet deployed"
-        },
         "resourceType": ResourceType.UserResource
     }
 
@@ -66,27 +62,5 @@ class UserResourceInCreate(BaseModel):
                     "display_name": "my user resource",
                     "description": "some description",
                 }
-            }
-        }
-
-
-class UserResourceIdInResponse(BaseModel):
-    resourceId: str
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "resourceId": "49a7445c-aae6-41ec-a539-30dfa90ab1ae",
-            }
-        }
-
-
-class UserResourcePatchEnabled(BaseModel):
-    enabled: bool
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "enabled": False
             }
         }

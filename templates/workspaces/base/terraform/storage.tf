@@ -4,15 +4,27 @@ resource "azurerm_storage_account" "stg" {
   location                 = azurerm_resource_group.ws.location
   account_tier             = "Standard"
   account_replication_type = "GRS"
+  tags                     = local.tre_workspace_tags
 
   lifecycle { ignore_changes = [tags] }
 }
 
-resource "azurerm_storage_account_network_rules" "stgrules" {
-  resource_group_name  = azurerm_resource_group.ws.name
+resource "azurerm_storage_share" "shared_storage" {
+  name                 = "vm-shared-storage"
   storage_account_name = azurerm_storage_account.stg.name
+  quota                = var.shared_storage_quota
 
-  default_action = "Deny"
+  depends_on = [
+    azurerm_private_endpoint.stgfilepe,
+    azurerm_storage_account_network_rules.stgrules
+  ]
+}
+
+resource "azurerm_storage_account_network_rules" "stgrules" {
+  storage_account_id = azurerm_storage_account.stg.id
+
+  # When deploying from a local machine we need to "allow"
+  default_action = var.enable_local_debugging ? "Allow" : "Deny"
   bypass         = ["AzureServices"]
 }
 
@@ -20,13 +32,18 @@ resource "azurerm_private_endpoint" "stgfilepe" {
   name                = "stgfilepe-${local.workspace_resource_name_suffix}"
   location            = azurerm_resource_group.ws.location
   resource_group_name = azurerm_resource_group.ws.name
-  subnet_id           = azurerm_subnet.services.id
+  subnet_id           = module.network.services_subnet_id
+  tags                = local.tre_workspace_tags
+
+  depends_on = [
+    module.network,
+  ]
 
   lifecycle { ignore_changes = [tags] }
 
   private_dns_zone_group {
     name                 = "private-dns-zone-group"
-    private_dns_zone_ids = [data.azurerm_private_dns_zone.filecore.id]
+    private_dns_zone_ids = [module.network.filecore_zone_id]
   }
 
   private_service_connection {
@@ -37,18 +54,22 @@ resource "azurerm_private_endpoint" "stgfilepe" {
   }
 }
 
-
 resource "azurerm_private_endpoint" "stgblobpe" {
   name                = "stgblobpe-${local.workspace_resource_name_suffix}"
   location            = azurerm_resource_group.ws.location
   resource_group_name = azurerm_resource_group.ws.name
-  subnet_id           = azurerm_subnet.services.id
+  subnet_id           = module.network.services_subnet_id
+  tags                = local.tre_workspace_tags
+
+  depends_on = [
+    module.network,
+  ]
 
   lifecycle { ignore_changes = [tags] }
 
   private_dns_zone_group {
     name                 = "private-dns-zone-group"
-    private_dns_zone_ids = [data.azurerm_private_dns_zone.blobcore.id]
+    private_dns_zone_ids = [module.network.blobcore_zone_id]
   }
 
   private_service_connection {

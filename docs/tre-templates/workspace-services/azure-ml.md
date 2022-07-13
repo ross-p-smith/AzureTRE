@@ -8,39 +8,20 @@ This service installs the following resources into an existing virtual network w
 
 ## Firewall Rules
 
-Please be aware that the following Firewall rules are opened for the workspace when this service is deployed:
-
-URLs:
-
-- graph.windows.net
-- ml.azure.com
-- login.microsoftonline.com
-- aadcdn.msftauth.net
-- graph.microsoft.com
-- management.azure.com
-- viennaglobal.azurecr.io
+Please be aware that the following outbound Firewall rules are opened for the workspace when this service is deployed, including to Azure Storage. This does open the possibility to extract data from a workspace if the user is determined to do so. Work is ongoing to remove some of these requirements:
 
 Service Tags:
-
+- AzureActiveDirectory
+- AzureResourceManager
+- AzureMachineLearning"
 - Storage.`{AzureRegion}`
-- AzureContainerRegistry
+- MicrosoftContainerRegistry
+
+URLs:
+- aadcdn.msftauth.net
+- ml.azure.com
+
 
 ## Prerequisites
 
 - [A base workspace bundle installed](../workspaces/base.md)
-
-## Manual Deployment
-
-1. Create a copy of `templates/workspace_services/azureml/.env.sample` with the name `.env` and update the variables with the appropriate values.
-
-  | Environment variable name | Description |
-  | ------------------------- | ----------- |
-  | `ID` | A GUID to identify the workspace service. The last 4 characters of this `ID` can be found in the resource names of the workspace service resources. |
-  | `WORKSPACE_ID` | The GUID identifier used when deploying the base workspace bundle. |
-
-1. Build and install the Azure ML Service bundle
-
-  ```cmd
-  make porter-build DIR=./templates/workspace_services/azureml
-  make porter-install DIR=./templates/workspace_services/azureml
-  ```

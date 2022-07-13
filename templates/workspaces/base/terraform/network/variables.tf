@@ -1,7 +1,6 @@
-variable "tre_id" {}
-variable "workspace_id" {}
 variable "location" {}
-variable "resource_group_name" {}
-variable "core_vnet" {}
-variable "core_resource_group_name" {}
+variable "tre_id" {}
 variable "address_space" {}
+variable "ws_resource_group_name" {}
+variable "tre_workspace_tags" {}
+variable "tre_resource_id" {}

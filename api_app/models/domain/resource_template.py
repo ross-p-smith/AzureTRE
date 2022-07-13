@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 
 from pydantic import Field
 
@@ -21,11 +21,38 @@ class Property(AzureTREModel):
     maxLength: Optional[int] = Field(None, title="Maximum length")
     minLength: Optional[int] = Field(None, title="Minimum length")
     pattern: Optional[str] = Field(None, title="Pattern")
+    updateable: Optional[bool] = Field(None, title="Indicates that the field can be updated")
+    sensitive: Optional[bool] = Field(None, title="Indicates that the field is a sensitive value")
+    readOnly: Optional[bool] = Field(None, title="Indicates the field is read-only")
+    items: Optional[dict] = None  # items can contain sub-properties
 
 
 class CustomAction(AzureTREModel):
     name: str = Field(None, title="Custom action name")
     description: str = Field("", title="Action description")
+
+
+class PipelineStepProperty(AzureTREModel):
+    name: str = Field(title="name", description="name of the property to update")
+    type: str = Field(title="type", description="data type of the property to update")
+    value: Union[dict, str] = Field(None, title="value", description="value to use in substitution for the property to update")
+    arraySubstitutionAction: Optional[str] = Field("", title="Array Substitution Action", description="How to treat existing values of this property in an array [overwrite | append | replace | remove]")
+    arrayMatchField: Optional[str] = Field("", title="Array match field", description="Name of the field to use for finding an item in an array - to replace/remove it")
+
+
+class PipelineStep(AzureTREModel):
+    stepId: Optional[str] = Field(title="stepId", description="Unique id identifying the step")
+    stepTitle: Optional[str] = Field(title="stepTitle", description="Human readable title of what the step is for")
+    resourceTemplateName: Optional[str] = Field(title="resourceTemplateName", description="Name of the template for the resource under change")
+    resourceType: Optional[ResourceType] = Field(title="resourceType", description="Type of resource under change")
+    resourceAction: Optional[str] = Field(title="resourceAction", description="Action - install / upgrade / uninstall etc")
+    properties: Optional[List[PipelineStepProperty]]
+
+
+class Pipeline(AzureTREModel):
+    install: Optional[List[PipelineStep]]
+    upgrade: Optional[List[PipelineStep]]
+    uninstall: Optional[List[PipelineStep]]
 
 
 class ResourceTemplate(AzureTREModel):
@@ -39,4 +66,10 @@ class ResourceTemplate(AzureTREModel):
     type: str = "object"
     required: List[str] = Field(title="List of properties which must be provided")
     properties: Dict[str, Property] = Field(title="Template properties")
-    actions: List[CustomAction] = Field(default=[], title="Template custom actions")
+    actions: List[CustomAction] = Field(default=[], title="Template actions")
+    customActions: List[CustomAction] = Field(default=[], title="Template custom actions")
+    pipeline: Optional[Pipeline] = Field(default=None, title="Template pipeline to define updates to other resources")
+    uiSchema: Optional[dict] = Field(default={}, title="Dict containing a uiSchema object, if any")
+
+    # setting this to false means if extra, unexpected fields are supplied, the request is invalidated
+    additionalProperties: bool = Field(default=False, title="Prevent unspecified properties being applied")

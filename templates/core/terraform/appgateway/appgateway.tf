@@ -2,17 +2,19 @@ resource "azurerm_public_ip" "appgwpip" {
   name                = "pip-agw-${var.tre_id}"
   resource_group_name = var.resource_group_name
   location            = var.location
-  allocation_method   = "Static"
+  allocation_method   = "Static" # Static IPs are allocated immediately
   sku                 = "Standard"
   domain_name_label   = var.tre_id
+  tags                = local.tre_core_tags
 
-  lifecycle { ignore_changes = [tags] }
+  lifecycle { ignore_changes = [tags, zones] }
 }
 
 resource "azurerm_user_assigned_identity" "agw_id" {
   resource_group_name = var.resource_group_name
   location            = var.location
   name                = "id-agw-${var.tre_id}"
+  tags                = local.tre_core_tags
 
   lifecycle { ignore_changes = [tags] }
 }
@@ -21,6 +23,7 @@ resource "azurerm_application_gateway" "agw" {
   name                = "agw-${var.tre_id}"
   resource_group_name = var.resource_group_name
   location            = var.location
+  tags                = local.tre_core_tags
 
   sku {
     name     = "Standard_v2"
@@ -132,6 +135,7 @@ resource "azurerm_application_gateway" "agw" {
     rule_type          = "PathBasedRouting"
     http_listener_name = local.secure_listener_name
     url_path_map_name  = local.app_path_map_name
+    priority           = 100
   }
 
   # Routing rule to redirect non-secure traffic to HTTPS
@@ -140,6 +144,7 @@ resource "azurerm_application_gateway" "agw" {
     rule_type          = "PathBasedRouting"
     http_listener_name = local.insecure_listener_name
     url_path_map_name  = local.redirect_path_map_name
+    priority           = 10
   }
 
   # Default traffic is routed to the static website. Exception is API.
@@ -180,17 +185,43 @@ resource "azurerm_application_gateway" "agw" {
   }
 
   # We don't want Terraform to revert certificate cycle changes. We assume the certificate will be renewed in keyvault.
-  lifecycle {
-    ignore_changes = [
-      ssl_certificate,
-      tags
-    ]
-  }
+  lifecycle { ignore_changes = [ssl_certificate, tags] }
 
 }
 
-data "azurerm_public_ip" "appgwpip_data" {
-  depends_on          = [azurerm_application_gateway.agw]
-  name                = "pip-agw-${var.tre_id}"
+data "azurerm_log_analytics_workspace" "tre" {
+  name                = "log-${var.tre_id}"
   resource_group_name = var.resource_group_name
 }
+
+resource "azurerm_monitor_diagnostic_setting" "agw" {
+  name                       = "diagnostics-agw-${var.tre_id}"
+  target_resource_id         = azurerm_application_gateway.agw.id
+  log_analytics_workspace_id = var.log_analytics_workspace_id
+  # log_analytics_destination_type = "Dedicated"
+
+  dynamic "log" {
+    for_each = toset(["ApplicationGatewayAccessLog", "ApplicationGatewayPerformanceLog", "ApplicationGatewayFirewallLog"])
+    content {
+      category = log.value
+      enabled  = true
+
+      retention_policy {
+        enabled = true
+        days    = 365
+      }
+    }
+  }
+
+  metric {
+    category = "AllMetrics"
+    enabled  = true
+
+    retention_policy {
+      enabled = true
+      days    = 365
+    }
+  }
+}
+
+

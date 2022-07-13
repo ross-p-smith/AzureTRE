@@ -2,8 +2,8 @@ variable "tre_id" {
   type        = string
   description = "Unique identifier for the TRE, such as projectx-dev-1234"
   validation {
-    condition     = length(var.tre_id) < 12
-    error_message = "The tre_id value must be < 12 chars."
+    condition     = length(var.tre_id) < 12 && lower(var.tre_id) == var.tre_id
+    error_message = "The tre_id value must be lowercase and < 12 chars."
   }
 }
 
@@ -31,11 +31,6 @@ variable "api_image_repository" {
   type        = string
   description = "Repository for API image"
   default     = "microsoft/azuretre/api"
-}
-
-variable "api_app_service_plan_sku_tier" {
-  type    = string
-  default = "PremiumV3"
 }
 
 variable "api_app_service_plan_sku_size" {
@@ -76,6 +71,12 @@ variable "resource_processor_client_secret" {
   description = "The client secret (app password) of a service principal with Owner role to the subscription."
 }
 
+variable "resource_processor_number_processes_per_instance" {
+  type        = string
+  default     = "2"
+  description = "The number of CPU processes to run the RP on per VM instance"
+}
+
 variable "docker_registry_server" {
   type        = string
   description = "Docker registry server"
@@ -101,7 +102,19 @@ variable "api_client_id" {
 
 variable "api_client_secret" {
   type        = string
-  description = "A client secret use by the API to authenticate with Azure AD for access to Microsoft Graph."
+  description = "A client secret used by the API to authenticate with Azure AD for access to Microsoft Graph."
+  sensitive   = true
+}
+
+variable "application_admin_client_id" {
+  type        = string
+  description = "The client id (app id) of the registration in Azure AD for creating AAD Applications."
+  sensitive   = true
+}
+
+variable "application_admin_client_secret" {
+  type        = string
+  description = "A client secret used by the Resource Processor to authenticate with Azure AD to create AAD Applications."
   sensitive   = true
 }
 
@@ -123,4 +136,42 @@ variable "resource_processor_type" {
   type        = string
 }
 
-variable "debug" {}
+variable "stateful_resources_locked" {
+  type        = bool
+  default     = true
+  description = "Used to add locks on resources with state"
+}
+
+variable "ci_git_ref" {
+  default     = ""
+  description = "The git ref used by the ci to deploy this TRE"
+  type        = string
+}
+
+variable "enable_local_debugging" {
+  default     = false
+  description = "This will allow Cosmos to be accessible from your local IP address and add some extra role permissions."
+  type        = bool
+}
+
+# this var is optional and used to avoid assigning a role on every run.
+variable "arm_subscription_id" {
+  description = "The subscription id to create the resource processor permission/role. If not supplied will use the TF context."
+  type        = string
+  default     = ""
+}
+
+variable "public_deployment_ip_address" {
+  description = "Your local IP address if https://ipecho.net/plain is blocked."
+  type        = string
+  default     = ""
+}
+
+# Important note: it is NOT enough to simply enable the malware scanning on. Further, manual, steps are required
+# in order to actually set up the scanner. Setting this property to True without supplying a scanner will result
+# in airlock requests being stuck in the in-progress stage.
+variable "enable_airlock_malware_scanning" {
+  type        = bool
+  default     = false
+  description = "If False, Airlock requests will skip the malware scanning stage"
+}

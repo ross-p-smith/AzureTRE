@@ -48,13 +48,16 @@ Before you can run the `deploy_tre.yml` pipeline there are some one-time configu
   ```
 
   !!! caution
-      Save the JSON output locally - as you will need it later for the `AZURE_CREDENTIALS` secret
+      Save the JSON output locally - as you will need it later for setting secrets in the build
 
-1. Configure the AZURE_CREDENTIALS repository secret
+1. Configure the repository secrets. These values will be in the JSON file from the previous step.
 
   | <div style="width: 230px">Secret name</div> | Description |
   | ----------- | ----------- |
-  | `AZURE_CREDENTIALS` | The JSON output from the previous step |
+  | `ARM_SUBSCRIPTION_ID` | The Azure subscription to deploy to  |
+  | `ARM_TENANT_ID` | The Azure tenant to deploy to  |
+  | `ARM_CLIENT_ID` | The Azure Client Id (user)  |
+  | `ARM_CLIENT_SECRET` | The Azure Client Secret (password)  |
 
 ### Decide on a TRE ID and Azure resources location
 
@@ -99,6 +102,7 @@ Configure the TEST_WORKSPACE_APP_ID repository secret
 | <div style="width: 230px">Secret name</div> | Description |
 | ----------- | ----------- |
 | `TEST_WORKSPACE_APP_ID` | The application (client) ID of the Workspaces app. |
+| `TEST_WORKSPACE_APP_SECRET` | The application (client) secret of the Workspaces app. |
 
 ### Create a Teams Webhook for deployment notifications
 
@@ -133,32 +137,3 @@ Configure additional repository secrets used in the deployment pipeline
 ### Deploy the TRE using the workflow
 
 With all the repository secrets set, you can trigger a workflow run by pushing to develop/main of your fork, or by dispatching the workflow manually.
-
-## Pull request security
-
-Many of the workflows access [GitHub repository secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets) and malicious code in workflows pose a security risk. Thus, pull requests (PRs) from forks cannot be allowed to execute workflows freely. By default, workflows are not run by pull requests from forks, but can be enabled with [`pull_request_target` event](https://docs.github.com/en/actions/learn-github-actions/events-that-trigger-workflows#pull_request_target).
-
-However, changes reviewed and found safe should be able to execute workflows. A label, that can only be assigned by authorized project members, can be used to safeguard workflow execution:
-
-```yaml
-on:
-  pull_request_target:
-    types: [labeled]
-    branches: [main]
-
-jobs:
-  my_job:
-    if: |
-      github.event.pull_request.head.repo.full_name == github.repository
-      || contains(github.event.pull_request.labels.*.name, 'safe to test')
-```
-
-The snippet above contains two conditions:
-
-1. Checking the name of the originating repository of the PR. In case the PR is from a fork the condition evaluates to `false`. `github.repository` (see [`github` context](https://docs.github.com/en/actions/learn-github-actions/contexts#github-context)) evaluates into string e.g., "microsoft/AzureTRE".
-2. Checking if the pull request has a label "safe to test".
-
-Effectively, the two conditions allow the job execution for all PRs originating from internal branches, but only allow PRs originating from a fork with "safe to test" label assigned to do so. The workflows of fork PRs will remain in "skipped" state until the label is set.
-
-!!! caution
-    Any job **without** the condition is allowed to execute even if the PR originates from a fork.
